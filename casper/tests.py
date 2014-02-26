@@ -29,6 +29,16 @@ class CasperTestCase(LiveServerTestCase):
         if self.use_phantom_disk_cache:
             StaticFilesHandler.serve = staticfiles_handler_serve
 
+    def casper_debug_opts(self, log_level='error'):
+        """ Will output casper.log() messages with the log_level (one of `info`, `debug`, `warning', `error`) """
+        debug_vals = {
+        'verbose': 'true', 
+        'log-level': '%s' % (getattr(settings, 'CASPERJS_LOG_LEVEL', log_level))
+        }
+        # other casperjs not test case specific kwargs.
+        debug_vals.update(getattr(settings, 'CASPERJS_NON_TEST_SPECIFIC_OPTIONS', {}))
+        return debug_vals
+
     def casper(self, test_filename, **kwargs):
         """CasperJS test invoker.
 
@@ -49,12 +59,16 @@ class CasperTestCase(LiveServerTestCase):
             'url-base': self.live_server_url
         })
 
+        # add casperjs debug args.
+        kwargs.update(self.casper_debug_opts())
+
         cn = settings.SESSION_COOKIE_NAME
         if cn in self.client.cookies:
             kwargs['cookie-' + cn] = self.client.cookies[cn].value
 
-        cmd = ['casperjs', 'test', '--no-colors']
-        cmd.extend([('--%s=%s' % i) for i in kwargs.iteritems()])
+        cmd = ['casperjs', 'test']
+
+        cmd.extend([('--%s=%s' % (k,v)) if v else ('--%s' % k) for (k,v) in kwargs.iteritems()]) # check empty vals like in `--no-colors` option.
         cmd.append(test_filename)
 
         p = Popen(cmd, stdout=PIPE, stderr=PIPE,
